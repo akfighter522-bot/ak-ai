@@ -11,7 +11,7 @@ const PORT = 3000;
 // Setup JSON body parser. On Vercel, the body might already be parsed.
 // We only run the body parsers if req.body is not already populated to prevent hanging.
 app.use((req, res, next) => {
-  if (req.body && typeof req.body === "object" && Object.keys(req.body).length > 0) {
+  if (req.body !== undefined) {
     next();
   } else {
     express.json({ limit: "50mb" })(req, res, next);
@@ -19,7 +19,7 @@ app.use((req, res, next) => {
 });
 
 app.use((req, res, next) => {
-  if (req.body && typeof req.body === "object" && Object.keys(req.body).length > 0) {
+  if (req.body !== undefined) {
     next();
   } else {
     express.urlencoded({ limit: "50mb", extended: true })(req, res, next);
