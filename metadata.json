@@ -1,0 +1,6 @@
+{
+  "name": "Text Extraction & Quiz PDF Generator",
+  "description": "An advanced text extraction (OCR) and quiz builder that processes images and PDFs, displays editable text results for precision, generates custom academic quizzes, and exports professionally styled quiz PDFs.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
