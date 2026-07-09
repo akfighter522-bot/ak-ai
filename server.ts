@@ -2,7 +2,6 @@ import express from "express";
 import path from "path";
 import dotenv from "dotenv";
 import { GoogleGenAI, Type } from "@google/genai";
-import { createServer as createViteServer } from "vite";
 
 dotenv.config();
 
@@ -88,13 +87,13 @@ async function generateContentWithRetry(
   throw lastError;
 }
 
-// API Health check endpoint
-app.get("/api/health", (req, res) => {
+// API Health check endpoint (matches both local /api/health and Vercel direct function /health)
+app.get(["/api/health", "/health"], (req, res) => {
   res.json({ status: "ok", message: "OCR & Quiz App Server is running." });
 });
 
-// Endpoint: Extract Text (OCR) from uploaded Image or PDF
-app.post("/api/ocr", async (req, res) => {
+// Endpoint: Extract Text (OCR) from uploaded Image or PDF (matches both local /api/ocr and Vercel /ocr)
+app.post(["/api/ocr", "/ocr"], async (req, res) => {
   try {
     const { fileData, mimeType } = req.body;
 
@@ -135,8 +134,8 @@ app.post("/api/ocr", async (req, res) => {
   }
 });
 
-// Endpoint: Generate Quiz from Text (JSON Schema)
-app.post("/api/generate-quiz", async (req, res) => {
+// Endpoint: Generate Quiz from Text (JSON Schema) (matches both local /api/generate-quiz and Vercel /generate-quiz)
+app.post(["/api/generate-quiz", "/generate-quiz"], async (req, res) => {
   try {
     const { sourceText, numQuestions, difficulty, questionTypes } = req.body;
 
@@ -240,6 +239,7 @@ ${sourceText}
 // Serve frontend assets using Vite middleware in development or static folder in production
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
@@ -259,4 +259,8 @@ async function startServer() {
   });
 }
 
-startServer();
+if (!process.env.VERCEL) {
+  startServer();
+}
+
+export default app;
