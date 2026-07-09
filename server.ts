@@ -57,7 +57,10 @@ async function generateContentWithRetry(
   initialDelayMs = 1500
 ): Promise<any> {
   const originalModel = params.model || "gemini-3.5-flash";
-  const modelsToTry = [originalModel, "gemini-3.1-flash-lite"];
+  
+  // Multimodal requests (containing inlineData) cannot fall back to text-only gemini-3.1-flash-lite
+  const isMultimodal = JSON.stringify(params.contents).includes("inlineData");
+  const modelsToTry = isMultimodal ? [originalModel] : [originalModel, "gemini-3.1-flash-lite"];
   let lastError: any = null;
 
   for (const model of modelsToTry) {
