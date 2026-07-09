@@ -58,8 +58,24 @@ export default function App() {
         body: JSON.stringify({ fileData: base64Data, mimeType }),
       });
 
-      const data = await response.json();
       clearInterval(intervalId);
+
+      if (!response.ok) {
+        let errMsg = `Server returned status ${response.status}`;
+        try {
+          const data = await response.json();
+          errMsg = data.error || data.message || errMsg;
+        } catch {
+          try {
+            const text = await response.text();
+            if (text && text.length < 250) errMsg = text;
+          } catch {}
+        }
+        setApiError(errMsg);
+        return;
+      }
+
+      const data = await response.json();
 
       if (data.success) {
         setExtractedText(data.text);
@@ -71,7 +87,7 @@ export default function App() {
       clearInterval(intervalId);
       console.error("OCR Fetch Error:", err);
       setApiError(
-        "Could not connect to the text extraction server. Make sure the backend server is active."
+        "Could not connect to the text extraction server. Make sure the backend server is active and running."
       );
     } finally {
       setIsOcrLoading(false);
@@ -96,6 +112,21 @@ export default function App() {
           questionTypes: config.questionTypes,
         }),
       });
+
+      if (!response.ok) {
+        let errMsg = `Server returned status ${response.status}`;
+        try {
+          const data = await response.json();
+          errMsg = data.error || data.message || errMsg;
+        } catch {
+          try {
+            const text = await response.text();
+            if (text && text.length < 250) errMsg = text;
+          } catch {}
+        }
+        setApiError(errMsg);
+        return;
+      }
 
       const data = await response.json();
 
