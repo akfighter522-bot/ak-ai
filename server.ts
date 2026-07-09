@@ -267,14 +267,29 @@ ${sourceText}
 
 // Serve frontend assets using Vite middleware in development or static folder in production
 async function startServer() {
-  if (process.env.NODE_ENV !== "production") {
-    const { createServer: createViteServer } = await import("vite");
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
+  const isProd =
+    process.env.NODE_ENV === "production" ||
+    (typeof __filename !== "undefined" && (__filename.endsWith(".cjs") || __filename.endsWith(".js")));
+
+  if (!isProd) {
+    try {
+      console.log("[Server] Starting in development mode with Vite middleware...");
+      const { createServer: createViteServer } = await import("vite");
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
+    } catch (e: any) {
+      console.error("[Server] Failed to load Vite development middleware. Falling back to static files:", e);
+      const distPath = path.join(process.cwd(), "dist");
+      app.use(express.static(distPath));
+      app.get("*", (req, res) => {
+        res.sendFile(path.join(distPath, "index.html"));
+      });
+    }
   } else {
+    console.log("[Server] Starting in production mode, serving static build...");
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
     // SPA Fallback
@@ -287,6 +302,19 @@ async function startServer() {
     console.log(`Server is running at http://localhost:${PORT}`);
   });
 }
+
+// Endpoint to check server configuration status (to help users diagnose setup issues)
+app.get(["/api/config", "/config"], (req, res) => {
+  const isProd =
+    process.env.NODE_ENV === "production" ||
+    (typeof __filename !== "undefined" && (__filename.endsWith(".cjs") || __filename.endsWith(".js")));
+
+  res.json({
+    hasApiKey: !!process.env.GEMINI_API_KEY,
+    nodeEnv: process.env.NODE_ENV,
+    isProduction: isProd
+  });
+});
 
 if (!process.env.VERCEL) {
   startServer();

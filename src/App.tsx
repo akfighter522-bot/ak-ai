@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Navbar from "./components/Navbar";
 import FileUploader from "./components/FileUploader";
 import TextEditor from "./components/TextEditor";
 import QuizConfigForm from "./components/QuizConfigForm";
 import QuizViewer from "./components/QuizViewer";
 import { Quiz, QuizConfig } from "./types";
-import { Sparkles, FileText, Settings, Award, ArrowRight, Loader2 } from "lucide-react";
+import { Sparkles, FileText, Settings, Award, ArrowRight, Loader2, AlertCircle } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
 type AppStep = "upload" | "review" | "quiz";
@@ -18,6 +18,23 @@ export default function App() {
   const [isOcrLoading, setIsOcrLoading] = useState<boolean>(false);
   const [isQuizLoading, setIsQuizLoading] = useState<boolean>(false);
   const [apiError, setApiError] = useState<string | null>(null);
+  const [apiKeyMissing, setApiKeyMissing] = useState<boolean>(false);
+
+  // Check configuration on mount
+  useEffect(() => {
+    const checkConfig = async () => {
+      try {
+        const res = await fetch("/api/config");
+        if (res.ok) {
+          const data = await res.json();
+          setApiKeyMissing(!data.hasApiKey);
+        }
+      } catch (err) {
+        console.error("Config check error:", err);
+      }
+    };
+    checkConfig();
+  }, []);
 
   // Fun, reassuring steps shown while performing multimodal OCR
   const [ocrProgressMessage, setOcrProgressMessage] = useState<string>("");
@@ -214,6 +231,21 @@ This process is vital for life on Earth as it is the primary source of oxygen in
             </div>
           </div>
         </div>
+
+        {/* API key missing warning banner */}
+        {apiKeyMissing && (
+          <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900 flex items-start gap-3 shadow-xs">
+            <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <h3 className="text-xs font-bold text-amber-800 uppercase tracking-wider">
+                Gemini API Key is not configured
+              </h3>
+              <p className="text-xs font-medium mt-1 leading-relaxed text-amber-700">
+                Please open the **Settings &gt; Secrets** panel in the top-right menu and add your **GEMINI_API_KEY** secret to enable text extraction (OCR) and interactive quiz generation.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Global API error notification */}
         {apiError && (
