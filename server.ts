@@ -8,9 +8,23 @@ dotenv.config();
 const app = express();
 const PORT = 3000;
 
-// Setup JSON body parser with a high limit for base64 file uploads (PDFs, high-res images)
-app.use(express.json({ limit: "50mb" }));
-app.use(express.urlencoded({ limit: "50mb", extended: true }));
+// Setup JSON body parser. On Vercel, the body might already be parsed.
+// We only run the body parsers if req.body is not already populated to prevent hanging.
+app.use((req, res, next) => {
+  if (req.body && typeof req.body === "object" && Object.keys(req.body).length > 0) {
+    next();
+  } else {
+    express.json({ limit: "50mb" })(req, res, next);
+  }
+});
+
+app.use((req, res, next) => {
+  if (req.body && typeof req.body === "object" && Object.keys(req.body).length > 0) {
+    next();
+  } else {
+    express.urlencoded({ limit: "50mb", extended: true })(req, res, next);
+  }
+});
 
 // Lazy initializer for GoogleGenAI to prevent startup crashes when keys are not yet provided
 let aiInstance: GoogleGenAI | null = null;
@@ -64,10 +78,13 @@ async function generateContentWithRetry(
 
         // If it's a definitive non-retryable user error (e.g. 400 bad request, API key invalid etc), fail immediately
         const isClientError = errorCode === 400 || 
+                              errorCode === 401 || 
                               errorCode === 403 || 
                               errorMessage.includes("invalid_argument") || 
                               errorMessage.includes("bad request") || 
-                              errorMessage.includes("api key");
+                              errorMessage.includes("api key") ||
+                              errorMessage.includes("unauthorized") ||
+                              errorMessage.includes("not found");
 
         if (isClientError) {
           console.error(`[Gemini] Definitive client error. Aborting retries.`);
@@ -95,19 +112,22 @@ app.get(["/api/health", "/health"], (req, res) => {
 // Endpoint: Extract Text (OCR) from uploaded Image or PDF (matches both local /api/ocr and Vercel /ocr)
 app.post(["/api/ocr", "/ocr"], async (req, res) => {
   try {
-    const { fileData, mimeType } = req.body;
+    const { fileData, mimeType } = req.body || {};
 
     if (!fileData || !mimeType) {
       res.status(400).json({ error: "Missing fileData (base64 string) or mimeType." });
       return;
     }
 
+    // Map non-standard image/jpg to standard image/jpeg for Gemini compatibility
+    const normalizedMimeType = mimeType === "image/jpg" ? "image/jpeg" : mimeType;
+
     const ai = getGenAI();
 
     // Prepare contents for Gemini multimodal request
     const filePart = {
       inlineData: {
-        mimeType: mimeType,
+        mimeType: normalizedMimeType,
         data: fileData, // expects standard base64 string
       },
     };
@@ -137,7 +157,7 @@ app.post(["/api/ocr", "/ocr"], async (req, res) => {
 // Endpoint: Generate Quiz from Text (JSON Schema) (matches both local /api/generate-quiz and Vercel /generate-quiz)
 app.post(["/api/generate-quiz", "/generate-quiz"], async (req, res) => {
   try {
-    const { sourceText, numQuestions, difficulty, questionTypes } = req.body;
+    const { sourceText, numQuestions, difficulty, questionTypes } = req.body || {};
 
     if (!sourceText) {
       res.status(400).json({ error: "No source text provided for quiz generation." });
@@ -224,7 +244,16 @@ ${sourceText}
     });
 
     const resultText = response.text || "{}";
-    const quizData = JSON.parse(resultText);
+    
+    // Robustly clean any markdown block formatting like ```json ... ``` before parsing
+    let cleanedText = resultText.trim();
+    if (cleanedText.startsWith("```")) {
+      cleanedText = cleanedText.replace(/^```(?:json)?\s*/i, "");
+      cleanedText = cleanedText.replace(/\s*```$/, "");
+    }
+    cleanedText = cleanedText.trim();
+
+    const quizData = JSON.parse(cleanedText);
 
     res.json({ success: true, quiz: quizData });
   } catch (error: any) {
